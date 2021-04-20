@@ -1,0 +1,120 @@
+Main
+(
+    Button_In      : IN STD_LOGIC_VECTOR (3 downto 0);
+    Button_Out     : OUT STD_LOGIC_VECTOR (1 downto 0) := "ZZ";
+    
+    Mic_LRCLK   : OUT STD_LOGIC;
+    Mic_BCLK    : OUT STD_LOGIC;
+    Mic_Data    : IN STD_LOGIC;
+    
+    Matrix_CS_O       : BUFFER STD_LOGIC;
+    Matrix_CLK_O      : OUT STD_LOGIC;
+    Matrix_DIN_O      : OUT STD_LOGIC;
+    
+    Mode_Switch    : IN  STD_LOGIC;
+    Up_Switch      : IN  STD_LOGIC;
+    Down_Switch    : IN  STD_LOGIC;
+    
+    Clock_Switch   : IN  STD_LOGIC;
+)
+{
+    
+    Process Scene_Select ()
+    {
+        VARIABLE New_Clap : BOOLEAN := true;
+        
+        If(New_Clap)
+        {
+            If(Claps = 2)        --clapped 2 times -> Set to 2. scene or turn everything off again
+            {
+                If(Scene > 1)    --If anyting besides the default scene is set
+                {
+                    Scene <= 1;  --  Set scene to default (normaly everything off)
+                }
+                Else             --Else
+                {
+                    Scene <= 2;  --  Set scene 2
+                }
+                
+                New_Clap := false;
+            }
+            
+            If(Claps = 3)        --clapped 3 times -> switch between other scenes
+            {
+                If(Scene > 3)    --If scene 4 is on
+                {
+                    Scene <= 2;  --  set scene 2
+                }
+                Elsif(Scene < 2) --Else if everything is off
+                {
+                    Scene <= 3;  --  set scene 3
+                }
+                Else             --Else
+                {
+                    Scene <= Scene + 1; --Go to next scene
+                }
+                
+                New_Clap := false;
+            }
+        }
+        Else
+        {
+            If(Claps = 0)
+            {
+                New_Clap := true;
+            }
+        }
+    }
+    
+    ISSP_probe <= STD_LOGIC_VECTOR(TO_UNSIGNED(Scene, ISSP_probe'LENGTH));
+    
+    SIGNAL ISSP_source : std_logic_vector (7 downto 0);
+    SIGNAL ISSP_probe  : std_logic_vector (31 downto 0) := (others => 'X');
+    NewComponent ISSP
+    (
+        source =>ISSP_source,
+        probe  =>ISSP_probe,
+    );
+    
+    Process Clock_Setting ()
+    {
+        If(Clock_Switch = '1')   --Clock Switch set to 'on'
+        {
+            Set_Clock <= true;   --Enable clock setup mode
+        }
+        Else
+        {
+            Set_Clock <= false;
+        }
+    }
+    
+    SIGNAL  Claps     : NATURAL range 0 to 5 := 0;
+    SIGNAL  Set_Clock : BOOLEAN := false;
+    SIGNAL  Scene     : NATURAL range 1 to 4 := 1;
+    
+    NewComponent SmartHome_Controller
+    (
+        Scene_1_Setting  => (Switch_A => false, Switch_B => false, Switch_C => false, Switch_D => false, Visualizer => false, Matrix => false),
+        Scene_2_Setting  => (Switch_A => true,  Switch_B => false, Switch_C => false, Switch_D => false, Visualizer => false, Matrix => false),
+        Scene_3_Setting  => (Switch_A => false, Switch_B => false, Switch_C => false, Switch_D => false, Visualizer => false, Matrix => false),
+        Scene_4_Setting  => (Switch_A => false, Switch_B => false, Switch_C => false, Switch_D => false, Visualizer => false, Matrix => false),
+        Setting_Switches => true,
+
+        Button_In      => Button_In,
+        Button_Out     => Button_Out,
+        Mic_LRCLK      => Mic_LRCLK,
+        Mic_BCLK       => Mic_BCLK,
+        Mic_Data       => Mic_Data,
+        Matrix_CS_O    => Matrix_CS_O,
+        Matrix_CLK_O   => Matrix_CLK_O,
+        Matrix_DIN_O   => Matrix_DIN_O,
+        Mode_Switch    => Mode_Switch,
+        Up_Switch      => Up_Switch,
+        Down_Switch    => Down_Switch,
+        
+        Scene          => Scene,
+        Claps          => Claps,
+        Set_Clock      => Set_Clock,
+    );
+    
+}

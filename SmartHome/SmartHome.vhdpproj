@@ -1,0 +1,90 @@
+<?xml version="1.0"?>
+<ProjectRoot xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Header>SmartHome</Header>
+  <Items xsi:type="ProjectFolder">
+    <Header>Generated</Header>
+    <Items xsi:type="ProjectFileVHDL">
+      <Header>Butterfly.vhd</Header>
+    </Items>
+    <Items xsi:type="ProjectFileVHDL">
+      <Header>I2S_Interface_IN.vhd</Header>
+    </Items>
+    <Items xsi:type="ProjectFileVHDL">
+      <Header>LED_Matrix_Text.vhd</Header>
+    </Items>
+    <Items xsi:type="ProjectFileVHDL">
+      <Header>MAX7219_Interface.vhd</Header>
+    </Items>
+    <Items xsi:type="ProjectFileVHDL">
+      <Header>Matrix.vhd</Header>
+    </Items>
+    <Items xsi:type="ProjectFileVHDL">
+      <Header>SPI_Master.vhd</Header>
+    </Items>
+    <Items xsi:type="ProjectFileVHDL">
+      <Header>SmartHome.vhd</Header>
+    </Items>
+    <Items xsi:type="ProjectFileVHDL">
+      <Header>SmartHome_Controller.vhd</Header>
+    </Items>
+    <Items xsi:type="ProjectFileVHDL">
+      <Header>Spectrum_Analyzer.vhd</Header>
+    </Items>
+  </Items>
+  <Items xsi:type="ProjectFolder">
+    <Header>Libraries</Header>
+    <Items xsi:type="ProjectFolder">
+      <Header>ISSP</Header>
+      <Items xsi:type="ProjectFile">
+        <Header>ISSP.qsys</Header>
+      </Items>
+      <Items xsi:type="ProjectFileVHDP">
+        <Header>ISSP.qsys.vhdp</Header>
+      </Items>
+    </Items>
+    <Items xsi:type="ProjectFolder">
+      <Header>LED_Matrix</Header>
+      <Items xsi:type="ProjectFileVHDP">
+        <Header>LED_Matrix_Text.vhdp</Header>
+      </Items>
+      <Items xsi:type="ProjectFileVHDP">
+        <Header>MAX7219_LED_Matrix.vhdp</Header>
+      </Items>
+    </Items>
+    <Items xsi:type="ProjectFolder">
+      <Header>Spectrum_Analyzer</Header>
+      <Items xsi:type="ProjectFileVHDP">
+        <Header>Butterfly.vhdp</Header>
+      </Items>
+      <Items xsi:type="ProjectFileVHDP">
+        <Header>Spectrum_Analyzer.vhdp</Header>
+      </Items>
+    </Items>
+    <Items xsi:type="ProjectFileVHDP">
+      <Header>I2S_IN.vhdp</Header>
+    </Items>
+    <Items xsi:type="ProjectFileVHDP">
+      <Header>SPI_Master.vhdp</Header>
+    </Items>
+  </Items>
+  <Items xsi:type="ProjectFileVHDP">
+    <Header>Matrix.vhdp</Header>
+  </Items>
+  <Items xsi:type="ProjectFileVHDP">
+    <Header>SmartHome.vhdp</Header>
+  </Items>
+  <Items xsi:type="ProjectFileVHDP">
+    <Header>SmartHome_Controller.vhdp</Header>
+  </Items>
+  <CruviHSExtensions>
+    <string xsi:nil="true" />
+  </CruviHSExtensions>
+  <CruviLSExtensions>
+    <string>LevelShifterExtension</string>
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+    <string xsi:nil="true" />
+  </CruviLSExtensions>
+  <IOVoltage>0</IOVoltage>
+  <UseShield>false</UseShield>
+</ProjectRoot>

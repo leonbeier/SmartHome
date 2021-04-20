@@ -1,0 +1,246 @@
+Component SmartHome_Controller
+(
+    Package SmartHome_Package
+    (
+        TYPE Scene_Type IS RECORD
+        Switch_A    : BOOLEAN;
+        Switch_B    : BOOLEAN;
+        Switch_C    : BOOLEAN;
+        Switch_D    : BOOLEAN;
+        Visualizer  : BOOLEAN;
+        Matrix      : BOOLEAN;
+        END RECORD Scene_Type;
+    );
+    
+    Generic
+    (
+        Scene_1_Setting  : Scene_Type := (Switch_A => false, Switch_B => false, Switch_C => false, Switch_D => false, Visualizer => false, Matrix => false);
+        Scene_2_Setting  : Scene_Type := (Switch_A => false, Switch_B => false, Switch_C => false, Switch_D => false, Visualizer => false, Matrix => false);
+        Scene_3_Setting  : Scene_Type := (Switch_A => false, Switch_B => false, Switch_C => false, Switch_D => false, Visualizer => false, Matrix => false);
+        Scene_4_Setting  : Scene_Type := (Switch_A => false, Switch_B => false, Switch_C => false, Switch_D => false, Visualizer => false, Matrix => false);
+        
+        Setting_Switches : BOOLEAN := true; --Use switches for clock settings (or use tactile switches otherwise)
+    );
+
+    Button_In      : IN  STD_LOGIC_VECTOR(3 downto 0);
+    Button_Out     : OUT STD_LOGIC_VECTOR(1 downto 0) := "ZZ";
+
+    Mic_LRCLK   : OUT STD_LOGIC;
+    Mic_BCLK    : OUT STD_LOGIC;
+    Mic_Data    : IN STD_LOGIC;
+
+    Matrix_CS_O       : OUT STD_LOGIC;
+    Matrix_CLK_O      : OUT STD_LOGIC;
+    Matrix_DIN_O      : OUT STD_LOGIC;
+    
+    Mode_Switch    : IN  STD_LOGIC := '0';
+    Up_Switch      : IN  STD_LOGIC := '0';
+    Down_Switch    : IN  STD_LOGIC := '0';
+
+    --User control
+    Scene          : IN  NATURAL range 1 to 4 := 1; --Set to scene that should be selected
+    
+    Claps          : BUFFER NATURAL range 0 to 5 := 0; --If clapped twice, would set Claps to 2 for 10ms
+    
+    Set_Clock      : IN  BOOLEAN := false; --Set true if you want to set the clock with the switches
+)
+{
+    
+    Connections
+    {
+        Button_In,
+        Button_Out,
+        
+        Mic_LRCLK,
+        Mic_BCLK,
+        Mic_Data,
+        
+        Matrix_CS_O,
+        Matrix_CLK_O,
+        Matrix_DIN_O,
+    }
+    
+    --Matrix------------------------------------------
+    
+    SIGNAL Mic_Out  : SIGNED    (17 downto 0);
+    NewComponent Matrix
+    (
+        Sensitivity_Divider => 8,
+
+        LRCLK               => Mic_LRCLK,
+        BCLK                => Mic_BCLK,
+        Data                => Mic_Data,
+        CS_O                => Matrix_CS_O,
+        CLK_O               => Matrix_CLK_O,
+        DIN_O               => Matrix_DIN_O,
+        
+        Mic_Out             => Mic_Out,
+    );
+    
+    --Clap detect------------------------------------------
+    
+    CONSTANT Threshold         : NATURAL := 800;   --This-Last Max > Threshold
+    CONSTANT Max_Duration      : NATURAL := 20;    --7 = 70ms
+    CONSTANT Max_False_Samples : NATURAL := 1000;  --32us*Max_False_Samples = Time to wait for clap sound wave
+    CONSTANT Max_Delay         : NATURAL := 100;   --100 = 1000ms max delay between claps
+    CONSTANT Min_Delay         : NATURAL := 10;    --10  = 100ms min delay between claps
+    CONSTANT Max_Samples       : NATURAL := 32000; --Samples to calculate last max value
+    
+    CONSTANT Max_Claps         : NATURAL := 5;
+    
+    SIGNAL Clap : STD_LOGIC := '0';
+    
+    Process ()
+    {
+        Thread
+        {
+            -- Wenn Schalter gesetzt und Geräusche nach 1min und 1min danach nicht aus -> alarm
+            -- Bei Uhrzeit Licht aus/an + wenn Geräusche
+            
+            --> 1500 -> Klatschen -< danach leise wieder
+            
+            VARIABLE Mic_Diff     : UNSIGNED (17 downto 0);
+            VARIABLE Mic_Reg      : SIGNED (17 downto 0);
+            VARIABLE Mic_Max      : UNSIGNED (17 downto 0);
+            VARIABLE Mic_Max_Reg  : UNSIGNED (17 downto 0);
+            
+            VARIABLE Clap_Start    : BOOLEAN := true;
+            VARIABLE False_Samples : NATURAL range 0 to Max_False_Samples := 0;
+
+            Mic_Max := (others => '0');
+            For(VARIABLE Samples : NATURAL range 0 to Max_Samples := 0; Samples < Max_Samples; Samples := Samples + 1)
+            {
+                Mic_Diff := TO_UNSIGNED(abs(TO_INTEGER(Mic_Out - Mic_Reg)), Mic_Diff'LENGTH);
+                
+                VARIABLE diff_abs : INTEGER range -131000 to 131000;
+                diff_abs := TO_INTEGER(Mic_Diff);
+                diff_abs := diff_abs - TO_INTEGER(Mic_Max_Reg);
+                If(diff_abs > Threshold) --This-Last Max > Threshold
+                {
+                    If(Clap_Start)
+                    {
+                        Samples    := 0;
+                        Clap_Start := false;
+                    }
+                    False_Samples := 0;
+                    
+                    Clap        <= '1';
+                }
+                Else
+                {
+                    If(False_Samples < Max_False_Samples)
+                    {
+                        False_Samples := False_Samples + 1;
+                    }
+                    Else
+                    {
+                        Clap_Start := true;
+                        Clap       <= '0';
+                        
+                        If(Mic_Max < Mic_Diff)
+                        {
+                            Mic_Max := Mic_Diff;
+                        }
+                    }
+                }
+                
+                Mic_Reg  := Mic_Out;
+                Wait(32us);
+            }
+            
+            Mic_Max_Reg := Mic_Max;
+        }
+        
+        Thread
+        {
+            VARIABLE Delay_Duration : NATURAL range 0 to Max_Delay := 0;
+            Delay_Duration := 0;
+            While(Clap = '0')
+            {
+                If(Delay_Duration < Max_Delay)
+                {
+                    Delay_Duration := Delay_Duration + 1;
+                }
+                Else
+                {
+                    Claps <= Clap_Count;
+                    Clap_Count := 0;
+                }
+                Wait(10ms);
+            }
+            Claps <= 0;
+            VARIABLE Clap_Duration : NATURAL range 0 to Max_Delay := 0;
+            Clap_Duration := 0;
+            While(Clap = '1')
+            {
+                If(Clap_Duration < Max_Delay)
+                {
+                    Clap_Duration := Clap_Duration + 1;
+                }
+                Wait(10ms);
+            }
+            VARIABLE Clap_Count : NATURAL := 0;
+            If(Clap_Duration < Max_Duration AND Delay_Duration > Min_Delay)
+            {
+                Clap_Count := Clap_Count + 1;
+            }
+        }
+    }
+    
+    --RC Switch------------------------------------------
+    
+    TYPE bool_vector IS ARRAY (natural range <>) OF BOOLEAN;
+    
+    Process ()
+    {
+        Thread
+        {
+            VARIABLE last_scene   : NATURAL range 0 to 4 := 0;
+            VARIABLE this_scene   : Scene_Type;
+            VARIABLE settings     : bool_vector(3 downto 0) := (others => false);
+            VARIABLE settings_reg : bool_vector(3 downto 0) := (others => false);
+            
+            If(Scene /= last_scene)
+            {
+                last_scene := Scene;
+                
+                If   (Scene = 1) { this_scene := Scene_1_Setting; }
+                Elsif(Scene = 2) { this_scene := Scene_2_Setting; }
+                Elsif(Scene = 3) { this_scene := Scene_3_Setting; }
+                Else             { this_scene := Scene_4_Setting; }
+                
+                settings_reg := settings;
+                settings(0) := this_scene.Switch_A;
+                settings(1) := this_scene.Switch_B;
+                settings(2) := this_scene.Switch_C;
+                settings(3) := this_scene.Switch_D;
+                
+                For(VARIABLE i : NATURAL range 0 to 4 := 0; i < 4; i := i + 1)
+                {
+                    If(settings(i) /= settings_reg(i))
+                    {
+                        If(settings(i)) { command <= (i*2)+1; }
+                        Else            { command <= (i*2)+2; }
+                        Wait(500ms);
+                        command <= 0;
+                        Wait(100ms);
+                    }
+                }
+            }
+        }
+    }
+    
+    SIGNAL command : NATURAL range 0 to 8 := 0;
+    
+    Button_Out(0) <= Button_In(0) when command = 1 else 'Z'; --A on
+    Button_Out(0) <= Button_In(1) when command = 2 else 'Z'; --A off
+    
+    Button_Out(0) <= Button_In(2) when command = 3 else 'Z'; --B on
+    Button_Out(0) <= Button_In(3) when command = 4 else 'Z'; --B off
+    
+    Button_Out(1) <= Button_In(0) when command = 5 else 'Z'; --C on
+    Button_Out(1) <= Button_In(1) when command = 6 else 'Z'; --C off
+    
+    Button_Out(1) <= Button_In(2) when command = 7 else 'Z'; --D on
+    Button_Out(1) <= Button_In(3) when command = 8 else 'Z'; --D off
+}
