@@ -402,9 +402,23 @@ Component Spectrum_Analyzer
                                 --Create subvalues
                                 For(i IN 1 to Range_Multiplier-1)
                                 {
+                                    /*
                                     If(muchbigger AND ((i = 1 AND bigger) OR (i = (Range_Multiplier-1) AND NOT bigger)))
                                     {
                                         outr(current_freq+i) <= outr_buf(6 downto 0)&'0';
+                                    }
+                                    Else
+                                    {
+                                        outr(current_freq+i) <= outr_buf;
+                                    }
+                                    */
+                                    If(outr_buf(i downto i-1) = 3)
+                                    {
+                                        outr(current_freq+i) <= outr_buf(6 downto 0)&'0';
+                                    }
+                                    Elsif(outr_buf(i downto i-1) = 2)
+                                    {
+                                        outr(current_freq+i) <= '0'&outr_buf(7 downto 1);
                                     }
                                     Else
                                     {

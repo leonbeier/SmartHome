@@ -67,8 +67,8 @@ Component Matrix
     (
         CLK_Frequency     => 12000000,
         Sample_Frequency  => 10000,
-        Frequency_Numbers => 16,
-        Range_Multiplier  => 2,
+        Frequency_Numbers => 8,
+        Range_Multiplier  => 4,
 
         adc_in            => resize((SIGNED(I2S_Interface_IN_Data_L)+6130)/Sensitivity_Divider, 8),
         New_Data          => Spectrum_Analyzer_New_Data,

@@ -132,10 +132,12 @@ Component SmartHome_Controller
     
     --Clap detect------------------------------------------
     
+    CONSTANT Loud_disable_time : NATURAL := 5;     --3*32us*Max_Samples
+    CONSTANT Loud_threshold    : NATURAL := 800;
     CONSTANT Threshold         : NATURAL := 800;   --This-Last Max > Threshold
-    CONSTANT Max_Duration      : NATURAL := 20;    --7 = 70ms
+    CONSTANT Max_Duration      : NATURAL := 10;    --7 = 70ms
     CONSTANT Max_False_Samples : NATURAL := 1000;  --32us*Max_False_Samples = Time to wait for clap sound wave
-    CONSTANT Max_Delay         : NATURAL := 100;   --100 = 1000ms max delay between claps
+    CONSTANT Max_Delay         : NATURAL := 50 ;   --100 = 1000ms max delay between claps
     CONSTANT Min_Delay         : NATURAL := 10;    --10  = 100ms min delay between claps
     CONSTANT Max_Samples       : NATURAL := 32000; --Samples to calculate last max value
     
@@ -167,8 +169,8 @@ Component SmartHome_Controller
                 
                 VARIABLE diff_abs : INTEGER range -131000 to 131000;
                 diff_abs := TO_INTEGER(Mic_Diff);
-                diff_abs := diff_abs - TO_INTEGER(Mic_Max_Reg);
-                If(diff_abs > Threshold) --This-Last Max > Threshold
+                diff_abs := diff_abs - TO_INTEGER(Mic_Max_Reg)*2;
+                If(diff_abs > Threshold AND Mic_Max_Reg < Loud_threshold) --This-Last Max > Threshold
                 {
                     If(Clap_Start)
                     {
@@ -190,7 +192,7 @@ Component SmartHome_Controller
                         Clap_Start := true;
                         Clap       <= '0';
                         
-                        If(Mic_Max < Mic_Diff)
+                        If(Mic_Max < Mic_Diff AND diff_abs < Threshold)
                         {
                             Mic_Max := Mic_Diff;
                         }
@@ -201,7 +203,25 @@ Component SmartHome_Controller
                 Wait(32us);
             }
             
-            Mic_Max_Reg := Mic_Max;
+            If(Mic_Max_Reg > Loud_threshold AND Mic_Max < Loud_threshold)
+            {
+                VARIABLE loud_count : NATURAL range 0 to Loud_disable_time := 0;
+                If(loud_count < Loud_disable_time)
+                {
+                    loud_count := loud_count + 1;
+                }
+                Else
+                {
+                    loud_count := 0;
+                    Mic_Max_Reg := Mic_Max;
+                }
+            }
+            Else
+            {
+                Mic_Max_Reg := Mic_Max;
+            }
+            
+            ISSP_probe(17 downto 0) <= STD_LOGIC_VECTOR(Mic_Max_Reg);
         }
         
         Thread
@@ -237,8 +257,28 @@ Component SmartHome_Controller
             {
                 Clap_Count := Clap_Count + 1;
             }
+            ISSP_probe1 <= STD_LOGIC_VECTOR(TO_UNSIGNED(Clap_Duration, ISSP_probe1'LENGTH));
+            ISSP_probe2 <= STD_LOGIC_VECTOR(TO_UNSIGNED(Delay_Duration, ISSP_probe2'LENGTH));
         }
     }
+    
+    SIGNAL ISSP_probe  : std_logic_vector (31 downto 0) := (others => 'X');
+    NewComponent ISSP
+    (
+        probe  =>ISSP_probe,
+    );
+    
+    SIGNAL ISSP_probe1  : std_logic_vector (31 downto 0) := (others => 'X');
+    NewComponent ISSP
+    (
+        probe  =>ISSP_probe1,
+    );
+    
+    SIGNAL ISSP_probe2  : std_logic_vector (31 downto 0) := (others => 'X');
+    NewComponent ISSP
+    (
+        probe  =>ISSP_probe2,
+    );
     
     --RC Switch------------------------------------------
     
