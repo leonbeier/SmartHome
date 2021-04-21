@@ -52,7 +52,6 @@ set_location_assignment PIN_A3 -to Button_In[0]
 set_location_assignment PIN_F4 -to Button_In[1]
 set_location_assignment PIN_B6 -to Button_In[2]
 set_location_assignment PIN_A4 -to Button_In[3]
-set_location_assignment PIN_E8 -to Clock_Switch
 set_location_assignment PIN_A7 -to Mode_Switch
 set_location_assignment PIN_A6 -to Up_Switch
 set_location_assignment PIN_C10 -to Mic_BCLK
@@ -63,3 +62,5 @@ set_location_assignment PIN_K1 -to Matrix_CS_O
 set_location_assignment PIN_M3 -to Matrix_CLK_O
 set_location_assignment PIN_B9 -to RTC_SCL
 set_location_assignment PIN_A9 -to RTC_SDA
+set_location_assignment PIN_E8 -to En_Clap_Switch
+set_location_assignment PIN_A8 -to En_Matrix_Switch

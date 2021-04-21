@@ -100,7 +100,67 @@ Component Matrix
         If(Clock_Mode)
         {
             LED_Matrix_Panel_Bitmap <= LED_Matrix_Text_Text_Matrix;
+            If(Set_Minute)
+            {
+                LED_Matrix_Panel_Bitmap(6)(7) <= '1';
+            }
+            Elsif(Set_Hour)
+            {
+                LED_Matrix_Panel_Bitmap(25)(7) <= '1';
+            }
             LED_Matrix_Update       <= LED_Matrix_Text_Text_En;
+        }
+        
+        Thread
+        {
+            VARIABLE fast : BOOLEAN := true;
+            fast := true;
+            While((Set_Hour NOR Set_Minute) OR NOT Incease)
+            {
+                fast := false;
+            }
+            If(Set_Minute)
+            {
+                If(DS3231_Interface_Config_Time.Minute < 9)
+                {
+                    DS3231_Interface_Config_Time.Minute <= DS3231_Interface_Config_Time.Minute + 1;
+                }
+                Elsif(DS3231_Interface_Config_Time.Minute10 < 5)
+                {
+                    DS3231_Interface_Config_Time.Minute   <= 0;
+                    DS3231_Interface_Config_Time.Minute10 <= DS3231_Interface_Config_Time.Minute10 + 1;
+                }
+                Else
+                {
+                    DS3231_Interface_Config_Time.Minute   <= 0;
+                    DS3231_Interface_Config_Time.Minute10 <= 0;
+                }
+            }
+            Elsif(Set_Hour)
+            {
+                If(DS3231_Interface_Config_Time.Hour < 9)
+                {
+                    DS3231_Interface_Config_Time.Hour <= DS3231_Interface_Config_Time.Hour + 1;
+                }
+                Elsif(DS3231_Interface_Config_Time.Hour10 < 2)
+                {
+                    DS3231_Interface_Config_Time.Hour   <= 0;
+                    DS3231_Interface_Config_Time.Hour10 <= DS3231_Interface_Config_Time.Hour10 + 1;
+                }
+                Else
+                {
+                    DS3231_Interface_Config_Time.Hour   <= 0;
+                    DS3231_Interface_Config_Time.Hour10 <= 0;
+                }
+            }
+            If(fast)
+            {
+                Wait(250ms);
+            }
+            Else
+            {
+                Wait(1s);
+            }
         }
         
         Thread
@@ -119,24 +179,44 @@ Component Matrix
             {
                 If(Clock_Mode)
                 {
-                    LED_Matrix_Text_Text(39 downto 32) <= STD_LOGIC_VECTOR(TO_UNSIGNED(DS3231_Interface_Time_Out.Hour10 + 48, 8));
-                    LED_Matrix_Text_Text(31 downto 24) <= STD_LOGIC_VECTOR(TO_UNSIGNED(DS3231_Interface_Time_Out.Hour + 48, 8));
+                    VARIABLE display_time : Date_Time_Type;
+                    VARIABLE set_reg : BOOLEAN := false;
+                    If(Set_Hour OR Set_Minute)
+                    {
+                        If(NOT set_reg)
+                        {
+                            DS3231_Interface_Config_Time <= DS3231_Interface_Time_Out;
+                            display_time := DS3231_Interface_Time_Out;
+                        }
+                        Else
+                        {
+                            display_time := DS3231_Interface_Config_Time;
+                        }
+                        set_reg := true;
+                    }
+                    Else
+                    {
+                        If(set_reg)
+                        {
+                            DS3231_Interface_Config_Time <= '1';
+                        }
+                        Else
+                        {
+                            DS3231_Interface_Config_Time <= '0';
+                        }
+                        set_reg := false;
+                        display_time := DS3231_Interface_Time_Out;
+                    }
+                    
+                    LED_Matrix_Text_Text(39 downto 32) <= STD_LOGIC_VECTOR(TO_UNSIGNED(display_time.Hour10 + 48, 8));
+                    LED_Matrix_Text_Text(31 downto 24) <= STD_LOGIC_VECTOR(TO_UNSIGNED(display_time.Hour + 48, 8));
                     LED_Matrix_Text_Text(23 downto 16) <= s":";
-                    LED_Matrix_Text_Text(15 downto 8) <= STD_LOGIC_VECTOR(TO_UNSIGNED(DS3231_Interface_Time_Out.Minute10 + 48, 8));
-                    LED_Matrix_Text_Text(7 downto 0) <= STD_LOGIC_VECTOR(TO_UNSIGNED(DS3231_Interface_Time_Out.Minute + 48, 8));
-                    
-                    If(Set_Minute)
-                    {
-                        LED_Matrix_Panel_Bitmap(7 downto 5)(7) <= (others => '1');
-                    }
-                    Elsif(Set_Hour)
-                    {
-                        LED_Matrix_Panel_Bitmap(26 downto 24)(7) <= (others => '1');
-                    }
-                    
+                    LED_Matrix_Text_Text(15 downto 8) <= STD_LOGIC_VECTOR(TO_UNSIGNED(display_time.Minute10 + 48, 8));
+                    LED_Matrix_Text_Text(7 downto 0) <= STD_LOGIC_VECTOR(TO_UNSIGNED(display_time.Minute + 48, 8));
+
                     LED_Matrix_Text_Set_Text <= '1';
                     Step { LED_Matrix_Text_Set_Text <= '0'; }
-                    Wait(1s);
+                    Wait(250ms);
                 }
                 Else
                 {
