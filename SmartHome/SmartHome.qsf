@@ -28,7 +28,11 @@ set_global_assignment -name TCL_SCRIPT_FILE Libraries/NIOSDuino/avalon_pwm_sw.tc
 set_global_assignment -name NUM_PARALLEL_PROCESSORS 8
 set_global_assignment -name INTERNAL_FLASH_UPDATE_MODE "SINGLE IMAGE"
 set_global_assignment -name VHDL_FILE Generated/Butterfly.vhd
+set_global_assignment -name VHDL_FILE Generated/DS3231_Interface.vhd
+set_global_assignment -name VHDL_FILE Generated/I2C_Array.vhd
+set_global_assignment -name VHDL_FILE Generated/I2C_Master_Interface.vhd
 set_global_assignment -name VHDL_FILE Generated/I2S_Interface_IN.vhd
+set_global_assignment -name VHDL_FILE Generated/Input_Debouncer.vhd
 set_global_assignment -name VHDL_FILE Generated/LED_Matrix_Text.vhd
 set_global_assignment -name VHDL_FILE Generated/MAX7219_Interface.vhd
 set_global_assignment -name VHDL_FILE Generated/Matrix.vhd
@@ -49,7 +53,6 @@ set_location_assignment PIN_F4 -to Button_In[1]
 set_location_assignment PIN_B6 -to Button_In[2]
 set_location_assignment PIN_A4 -to Button_In[3]
 set_location_assignment PIN_E8 -to Clock_Switch
-set_location_assignment PIN_A8 -to Down_Switch
 set_location_assignment PIN_A7 -to Mode_Switch
 set_location_assignment PIN_A6 -to Up_Switch
 set_location_assignment PIN_C10 -to Mic_BCLK
@@ -58,3 +61,5 @@ set_location_assignment PIN_D8 -to Mic_LRCLK
 set_location_assignment PIN_L2 -to Matrix_DIN_O
 set_location_assignment PIN_K1 -to Matrix_CS_O
 set_location_assignment PIN_M3 -to Matrix_CLK_O
+set_location_assignment PIN_B9 -to RTC_SCL
+set_location_assignment PIN_A9 -to RTC_SDA

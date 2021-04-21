@@ -148,6 +148,7 @@ Component LED_Matrix_Text
                         
                         Case(current_char)
                         {
+                            /*
                             When(x"20") --space
                             {
                                 matrix_char := ( "00000000",
@@ -236,6 +237,7 @@ Component LED_Matrix_Text
                                                  "00010000",
                                                  "00100000" );
                             }
+                            */
                             When(x"30") --0
                             {
                                 matrix_char := ( "00111110",
@@ -324,6 +326,7 @@ Component LED_Matrix_Text
                                                  "00000000",
                                                  "00000000" );
                             }
+                            /*
                             When(x"3C") --<
                             {
                                 matrix_char := ( "00000000",
@@ -604,6 +607,7 @@ Component LED_Matrix_Text
                                                  "01000000",
                                                  "00111101" );
                             }
+                            */
                             When(others)
                             {
                                 matrix_char := ( "00000000",

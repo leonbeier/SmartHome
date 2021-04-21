@@ -25,17 +25,19 @@ Component SmartHome_Controller
     Button_In      : IN  STD_LOGIC_VECTOR(3 downto 0);
     Button_Out     : OUT STD_LOGIC_VECTOR(1 downto 0) := "ZZ";
 
-    Mic_LRCLK   : OUT STD_LOGIC;
-    Mic_BCLK    : OUT STD_LOGIC;
-    Mic_Data    : IN STD_LOGIC;
+    Mic_LRCLK      : OUT STD_LOGIC;
+    Mic_BCLK       : OUT STD_LOGIC;
+    Mic_Data       : IN STD_LOGIC;
 
-    Matrix_CS_O       : OUT STD_LOGIC;
-    Matrix_CLK_O      : OUT STD_LOGIC;
-    Matrix_DIN_O      : OUT STD_LOGIC;
+    Matrix_CS_O    : OUT STD_LOGIC;
+    Matrix_CLK_O   : OUT STD_LOGIC;
+    Matrix_DIN_O   : OUT STD_LOGIC;
+    
+    RTC_SDA        : INOUT STD_LOGIC := 'Z';
+    RTC_SCL        : INOUT STD_LOGIC := 'Z';
     
     Mode_Switch    : IN  STD_LOGIC := '0';
     Up_Switch      : IN  STD_LOGIC := '0';
-    Down_Switch    : IN  STD_LOGIC := '0';
 
     --User control
     Scene          : IN  NATURAL range 1 to 4 := 1; --Set to scene that should be selected
@@ -58,24 +60,75 @@ Component SmartHome_Controller
         Matrix_CS_O,
         Matrix_CLK_O,
         Matrix_DIN_O,
+        
+        RTC_SCL,
+        RTC_SDA,
     }
     
     --Matrix------------------------------------------
     
     SIGNAL Mic_Out  : SIGNED    (17 downto 0);
+    SIGNAL Set_Hour            : BOOLEAN := false;
+    SIGNAL Set_Minute          : BOOLEAN := false;
+    SIGNAL Incease             : BOOLEAN := false;
+    SIGNAL Brightness          : NATURAL   range 0 to 15 := 5;
     NewComponent Matrix
     (
         Sensitivity_Divider => 8,
 
-        LRCLK               => Mic_LRCLK,
-        BCLK                => Mic_BCLK,
-        Data                => Mic_Data,
-        CS_O                => Matrix_CS_O,
-        CLK_O               => Matrix_CLK_O,
-        DIN_O               => Matrix_DIN_O,
+        Mic_LRCLK           => Mic_LRCLK,
+        Mic_BCLK            => Mic_BCLK,
+        Mic_Data            => Mic_Data,
+        Matrix_CS_O         => Matrix_CS_O,
+        Matrix_CLK_O        => Matrix_CLK_O,
+        Matrix_DIN_O        => Matrix_DIN_O,
+        RTC_SCL             => RTC_SCL,
+        RTC_SDA             => RTC_SDA,
+        
+        Clock_Mode          => NOT this_scene.Visualizer,
+        Set_Hour            => Set_Hour,
+        Set_Minute          => Set_Minute,
+        Incease             => Incease,
+        
+        Brightness          => Brightness,
         
         Mic_Out             => Mic_Out,
     );
+    
+    --Clock Setting----------------------------------------
+    
+    SIGNAL Input_Debouncer_Outputs      : STD_LOGIC_VECTOR (2-1 downto 0) := (others => '0');
+    NewComponent Input_Debouncer
+    (
+        Input_Number => 2,
+
+        Inputs       => Mode_Switch & Up_Switch,
+        Outputs      => Input_Debouncer_Outputs,
+    );
+    
+    Incease <= true when Input_Debouncer_Outputs(0) = '1' else false;
+    
+    Process ()
+    {
+        VARIABLE mode_reg : STD_LOGIC := '0';
+        If(Input_Debouncer_Outputs(1) /= mode_reg)
+        {
+            If(Set_Hour NOR Set_Minute)
+            {
+                Set_Hour <= true;
+            }
+            Elsif(Set_Hour = true)
+            {
+                Set_Hour <= false;
+                Set_Minute <= true;
+            }
+            Else
+            {
+                Set_Minute <= true;
+            }
+        }
+        mode_reg := Input_Debouncer_Outputs(1);
+    }
     
     --Clap detect------------------------------------------
     
@@ -179,8 +232,8 @@ Component SmartHome_Controller
                 }
                 Wait(10ms);
             }
-            VARIABLE Clap_Count : NATURAL := 0;
-            If(Clap_Duration < Max_Duration AND Delay_Duration > Min_Delay)
+            VARIABLE Clap_Count : NATURAL range 0 to Max_Claps := 0;
+            If(Clap_Duration < Max_Duration AND Delay_Duration > Min_Delay AND Clap_Count < Max_Claps)
             {
                 Clap_Count := Clap_Count + 1;
             }
@@ -196,7 +249,7 @@ Component SmartHome_Controller
         Thread
         {
             VARIABLE last_scene   : NATURAL range 0 to 4 := 0;
-            VARIABLE this_scene   : Scene_Type;
+            SIGNAL   this_scene   : Scene_Type;
             VARIABLE settings     : bool_vector(3 downto 0) := (others => false);
             VARIABLE settings_reg : bool_vector(3 downto 0) := (others => false);
             
@@ -204,10 +257,13 @@ Component SmartHome_Controller
             {
                 last_scene := Scene;
                 
-                If   (Scene = 1) { this_scene := Scene_1_Setting; }
-                Elsif(Scene = 2) { this_scene := Scene_2_Setting; }
-                Elsif(Scene = 3) { this_scene := Scene_3_Setting; }
-                Else             { this_scene := Scene_4_Setting; }
+                Step
+                {
+                    If   (Scene = 1) { this_scene <= Scene_1_Setting; }
+                    Elsif(Scene = 2) { this_scene <= Scene_2_Setting; }
+                    Elsif(Scene = 3) { this_scene <= Scene_3_Setting; }
+                    Else             { this_scene <= Scene_4_Setting; }
+                }
                 
                 settings_reg := settings;
                 settings(0) := this_scene.Switch_A;

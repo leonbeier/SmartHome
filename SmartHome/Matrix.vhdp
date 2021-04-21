@@ -5,25 +5,38 @@ Component Matrix
         Sensitivity_Divider : NATURAL := 8;  -- lower value = higehr volume
     );
     
-    LRCLK         : OUT STD_LOGIC;
-    BCLK          : OUT STD_LOGIC;
-    Data          : IN STD_LOGIC;
+    Mic_LRCLK     : OUT STD_LOGIC;
+    Mic_BCLK      : OUT STD_LOGIC;
+    Mic_Data      : IN STD_LOGIC;
     
-    CS_O          : BUFFER STD_LOGIC;
-    CLK_O         : OUT STD_LOGIC;
-    DIN_O         : OUT STD_LOGIC;
+    Matrix_CS_O   : BUFFER STD_LOGIC;
+    Matrix_CLK_O  : OUT STD_LOGIC;
+    Matrix_DIN_O  : OUT STD_LOGIC;
+    
+    RTC_SDA       : INOUT STD_LOGIC := 'Z';
+    RTC_SCL       : INOUT STD_LOGIC := 'Z';
+    
+    Clock_Mode    : IN BOOLEAN := true;
+    Set_Hour      : IN BOOLEAN := false;
+    Set_Minute    : IN BOOLEAN := false;
+    Incease       : IN BOOLEAN := false;
+    
+    Brightness    : IN NATURAL range 0 to 15 := 5;
     
     Mic_Out       : OUT SIGNED(17 downto 0);
 )
 {
+    
     Connections
     {
-        LRCLK,
-        BCLK,
-        Data,
-        CS_O,
-        CLK_O,
-        DIN_O,
+        Mic_LRCLK,
+        Mic_BCLK,
+        Mic_Data,
+        Matrix_CS_O,
+        Matrix_CLK_O,
+        Matrix_DIN_O,
+        RTC_SCL,
+        RTC_SDA,
     }
     
     Mic_Out <= SIGNED(I2S_Interface_IN_Data_L);
@@ -40,9 +53,9 @@ Component Matrix
         BCLK_Edge          => '1',
         
         Reset              => '0',
-        LRCLK              => LRCLK,
-        BCLK               => BCLK,
-        Data               => Data,
+        LRCLK              => Mic_LRCLK,
+        BCLK               => Mic_BCLK,
+        Data               => Mic_Data,
         Data_L             => I2S_Interface_IN_Data_L,
         Data_R             => I2S_Interface_IN_Data_R,
         Ready              => I2S_Interface_IN_Ready,
@@ -73,16 +86,23 @@ Component Matrix
         Mirror        => '1',
         
         Reset         => '0',
-        CS_O          => CS_O,
-        CLK_O         => CLK_O,
-        DIN_O         => DIN_O,
+        CS_O          => Matrix_CS_O,
+        CLK_O         => Matrix_CLK_O,
+        DIN_O         => Matrix_DIN_O,
         Panel_Bitmap  => LED_Matrix_Panel_Bitmap,
         Update        => LED_Matrix_Update,
+        Brightness    => Brightness,
         Config        => LED_Matrix_Config,
     );
     
     Process ()
     {
+        If(Clock_Mode)
+        {
+            LED_Matrix_Panel_Bitmap <= LED_Matrix_Text_Text_Matrix;
+            LED_Matrix_Update       <= LED_Matrix_Text_Text_En;
+        }
+        
         Thread
         {
             --Load settings (brightness and shutdown)
@@ -92,27 +112,93 @@ Component Matrix
             Step{ LED_Matrix_Config <= '0'; }
             Wait(10ms);
             
-            While(true)
+            VARIABLE Brightness_reg : NATURAL range 0 to 15;
+            Brightness_reg := Brightness;
+            
+            While(Brightness = Brightness_reg)
             {
-                ParFor(i IN 1 to 31)
+                If(Clock_Mode)
                 {
-                    If(Spectrum_Analyzer_data_o(i) > 127){LED_Matrix_Panel_Bitmap(i)(0) <= '1';}Else{LED_Matrix_Panel_Bitmap(i)(0) <= '0';}
-                    If(Spectrum_Analyzer_data_o(i) > 64) {LED_Matrix_Panel_Bitmap(i)(1) <= '1';}Else{LED_Matrix_Panel_Bitmap(i)(1) <= '0';}
-                    If(Spectrum_Analyzer_data_o(i) > 31) {LED_Matrix_Panel_Bitmap(i)(2) <= '1';}Else{LED_Matrix_Panel_Bitmap(i)(2) <= '0';}
-                    If(Spectrum_Analyzer_data_o(i) > 15) {LED_Matrix_Panel_Bitmap(i)(3) <= '1';}Else{LED_Matrix_Panel_Bitmap(i)(3) <= '0';}
-                    If(Spectrum_Analyzer_data_o(i) > 7)  {LED_Matrix_Panel_Bitmap(i)(4) <= '1';}Else{LED_Matrix_Panel_Bitmap(i)(4) <= '0';}
-                    If(Spectrum_Analyzer_data_o(i) > 3)  {LED_Matrix_Panel_Bitmap(i)(5) <= '1';}Else{LED_Matrix_Panel_Bitmap(i)(5) <= '0';}
-                    If(Spectrum_Analyzer_data_o(i) > 1)  {LED_Matrix_Panel_Bitmap(i)(6) <= '1';}Else{LED_Matrix_Panel_Bitmap(i)(6) <= '0';}
-                    If(Spectrum_Analyzer_data_o(i) > 0)  {LED_Matrix_Panel_Bitmap(i)(7) <= '1';}Else{LED_Matrix_Panel_Bitmap(i)(7) <= '0';}
+                    LED_Matrix_Text_Text(39 downto 32) <= STD_LOGIC_VECTOR(TO_UNSIGNED(DS3231_Interface_Time_Out.Hour10 + 48, 8));
+                    LED_Matrix_Text_Text(31 downto 24) <= STD_LOGIC_VECTOR(TO_UNSIGNED(DS3231_Interface_Time_Out.Hour + 48, 8));
+                    LED_Matrix_Text_Text(23 downto 16) <= s":";
+                    LED_Matrix_Text_Text(15 downto 8) <= STD_LOGIC_VECTOR(TO_UNSIGNED(DS3231_Interface_Time_Out.Minute10 + 48, 8));
+                    LED_Matrix_Text_Text(7 downto 0) <= STD_LOGIC_VECTOR(TO_UNSIGNED(DS3231_Interface_Time_Out.Minute + 48, 8));
+                    
+                    If(Set_Minute)
+                    {
+                        LED_Matrix_Panel_Bitmap(7 downto 5)(7) <= (others => '1');
+                    }
+                    Elsif(Set_Hour)
+                    {
+                        LED_Matrix_Panel_Bitmap(26 downto 24)(7) <= (others => '1');
+                    }
+                    
+                    LED_Matrix_Text_Set_Text <= '1';
+                    Step { LED_Matrix_Text_Set_Text <= '0'; }
+                    Wait(1s);
                 }
-                LED_Matrix_Panel_Bitmap(0) <= "1" & LED_Matrix_Panel_Bitmap(1)(7 downto 1);
-                
-                --Update image -> show already defined image
-                LED_Matrix_Update     <= '0';
-                Step { LED_Matrix_Update <= '1'; }
-                
-                While(Spectrum_Analyzer_New_Data = '0') {}
+                Else
+                {
+                    ParFor(i IN 1 to 31)
+                    {
+                        If(Spectrum_Analyzer_data_o(i) > 127){LED_Matrix_Panel_Bitmap(i)(0) <= '1';}Else{LED_Matrix_Panel_Bitmap(i)(0) <= '0';}
+                        If(Spectrum_Analyzer_data_o(i) > 64) {LED_Matrix_Panel_Bitmap(i)(1) <= '1';}Else{LED_Matrix_Panel_Bitmap(i)(1) <= '0';}
+                        If(Spectrum_Analyzer_data_o(i) > 31) {LED_Matrix_Panel_Bitmap(i)(2) <= '1';}Else{LED_Matrix_Panel_Bitmap(i)(2) <= '0';}
+                        If(Spectrum_Analyzer_data_o(i) > 15) {LED_Matrix_Panel_Bitmap(i)(3) <= '1';}Else{LED_Matrix_Panel_Bitmap(i)(3) <= '0';}
+                        If(Spectrum_Analyzer_data_o(i) > 7)  {LED_Matrix_Panel_Bitmap(i)(4) <= '1';}Else{LED_Matrix_Panel_Bitmap(i)(4) <= '0';}
+                        If(Spectrum_Analyzer_data_o(i) > 3)  {LED_Matrix_Panel_Bitmap(i)(5) <= '1';}Else{LED_Matrix_Panel_Bitmap(i)(5) <= '0';}
+                        If(Spectrum_Analyzer_data_o(i) > 1)  {LED_Matrix_Panel_Bitmap(i)(6) <= '1';}Else{LED_Matrix_Panel_Bitmap(i)(6) <= '0';}
+                        If(Spectrum_Analyzer_data_o(i) > 0)  {LED_Matrix_Panel_Bitmap(i)(7) <= '1';}Else{LED_Matrix_Panel_Bitmap(i)(7) <= '0';}
+                    }
+                    LED_Matrix_Panel_Bitmap(0) <= "1" & LED_Matrix_Panel_Bitmap(1)(7 downto 1);
+                    
+                    --Update image -> show already defined image
+                    LED_Matrix_Update     <= '0';
+                    Step { LED_Matrix_Update <= '1'; }
+                    
+                    While(Spectrum_Analyzer_New_Data = '0') {}
+                }
             }
         }
     }
+    
+    --Clock------------------------------------------
+    
+    SIGNAL DS3231_Interface_Config        : STD_LOGIC := '0';
+    SIGNAL DS3231_Interface_Config_Time   : Date_Time_Type;
+    SIGNAL DS3231_Interface_Time_Out      : Date_Time_Type;
+    SIGNAL DS3231_Interface_Temp          : INTEGER        range -128 to 127 := 0;
+    SIGNAL DS3231_Interface_Temp25        : NATURAL        range 0 to 3 := 0;
+    NewComponent DS3231_Interface
+    (
+        CLK_Frequency => 12000000,
+
+        SDA           => RTC_SDA,
+        SCL           => RTC_SCL,
+        Config        => DS3231_Interface_Config,
+        C_24h_12h     => '0',
+        Config_Time   => DS3231_Interface_Config_Time,
+        Time_Out      => DS3231_Interface_Time_Out,
+        Temp          => DS3231_Interface_Temp,
+        Temp25        => DS3231_Interface_Temp25,
+    );
+    
+    SIGNAL LED_Matrix_Text_Text          : STD_LOGIC_VECTOR ((5*8)-1 downto 0) := (others => '0');
+    SIGNAL LED_Matrix_Text_Set_Text      : STD_LOGIC := '0';
+    SIGNAL LED_Matrix_Text_Text_Matrix   : LED_Matrix_Array ((4*8)-1 downto 0) := (others => (others => '0'));
+    SIGNAL LED_Matrix_Text_Text_En       : STD_LOGIC := '0';
+    NewComponent LED_Matrix_Text
+    (
+        CLK_Frequency => 12000000,
+        Panels        => 4,
+        MaxChars      => 5,
+
+        Text          => LED_Matrix_Text_Text,
+        Text_Length   => 5,
+        Set_Text      => LED_Matrix_Text_Set_Text,
+        Scroll        => '0',
+        Text_Matrix   => LED_Matrix_Text_Text_Matrix,
+        Text_En       => LED_Matrix_Text_Text_En,
+    );
 }
