@@ -20,6 +20,8 @@ Component SmartHome_Controller
         Scene_4_Setting  : Scene_Type := (Switch_A => false, Switch_B => false, Switch_C => false, Switch_D => false, Visualizer => false, Matrix => false);
         
         Setting_Switches : BOOLEAN := true; --Use switches for clock settings (or use tactile switches otherwise)
+        Claps_for_cycle  : NATURAL := 6;    --Outputs this clap count if manual scene change is selected
+        Claps_for_bright : NATURAL := 7;    --Outputs this clap count if brigness should change
     );
 
     Button_In      : IN  STD_LOGIC_VECTOR(3 downto 0);
@@ -36,15 +38,20 @@ Component SmartHome_Controller
     RTC_SDA        : INOUT STD_LOGIC := 'Z';
     RTC_SCL        : INOUT STD_LOGIC := 'Z';
     
-    Mode_Switch    : IN  STD_LOGIC := '0';
-    Up_Switch      : IN  STD_LOGIC := '0';
+    Mode_Switch      : IN  STD_LOGIC;
+    Up_Switch        : IN  STD_LOGIC;
+    En_Matrix_Switch : IN  STD_LOGIC;
+    En_Clap_Switch   : IN  STD_LOGIC;
 
     --User control
     Scene          : IN  NATURAL range 1 to 4 := 1; --Set to scene that should be selected
     
-    Claps          : BUFFER NATURAL range 0 to 5 := 0; --If clapped twice, would set Claps to 2 for 10ms
+    Claps          : BUFFER NATURAL range 0 to 7 := 0; --If clapped twice, would set Claps to 2 for 10ms
     
-    Set_Clock      : IN  BOOLEAN := false; --Set true if you want to set the clock with the switches
+    Clock_Hours    : OUT NATURAL range 0 to 23 := 0;
+    Clock_Minutes  : OUT NATURAL range 0 to 59 := 0;
+    
+    Brightness     : IN INTEGER range -1 to 15 := 4;  -- -1 = off while on
 )
 {
     
@@ -67,11 +74,15 @@ Component SmartHome_Controller
     
     --Matrix------------------------------------------
     
+    Matrix_En <= '1' when Brightness > -1 else '0';
+    Matrix_Brig <= 0 when Brightness = -1 else Brightness;
+    
     SIGNAL Mic_Out  : SIGNED    (17 downto 0);
-    SIGNAL Set_Hour            : BOOLEAN := false;
-    SIGNAL Set_Minute          : BOOLEAN := false;
-    SIGNAL Incease             : BOOLEAN := false;
-    SIGNAL Brightness          : NATURAL   range 0 to 15 := 5;
+    SIGNAL Set_Hour    : BOOLEAN := false;
+    SIGNAL Set_Minute  : BOOLEAN := false;
+    SIGNAL Incease     : BOOLEAN := false;
+    SIGNAL Matrix_En   : STD_LOGIC := '1';
+    SIGNAL Matrix_Brig : NATURAL range 0 to 15;
     NewComponent Matrix
     (
         Sensitivity_Divider => 8,
@@ -85,33 +96,59 @@ Component SmartHome_Controller
         RTC_SCL             => RTC_SCL,
         RTC_SDA             => RTC_SDA,
         
+        Enable              => Matrix_En,
+        
         Clock_Mode          => NOT this_scene.Visualizer,
         Set_Hour            => Set_Hour,
         Set_Minute          => Set_Minute,
         Incease             => Incease,
         
-        Brightness          => Brightness,
+        Brightness          => Matrix_Brig,
         
         Mic_Out             => Mic_Out,
+        Clock_Hours         => Clock_Hours,
+        Clock_Minutes       => Clock_Minutes,
     );
+    
+    --Scene and Brightness control-----------------------------------
+    
+    Process ()
+    {
+        Thread
+        {
+            If(Up_Switch = '1' AND (Set_Hour NOR Set_Minute))
+            {
+                If(En_Matrix_Switch = '1')
+                {
+                    Claps <= Claps_for_cycle;
+                    Wait(10ms);
+                    Claps <= 0;
+                    Wait(1s);
+                }
+                Else
+                {
+                    Claps <= Claps_for_bright;
+                    Wait(10ms);
+                    Claps <= 0;
+                    Wait(1s);
+                }
+                
+            }
+            Else
+            {
+                Claps <= Claps_reg;
+            }
+        }
+    }
     
     --Clock Setting----------------------------------------
     
-    SIGNAL Input_Debouncer_Outputs      : STD_LOGIC_VECTOR (2-1 downto 0) := (others => '0');
-    NewComponent Input_Debouncer
-    (
-        Input_Number => 2,
-
-        Inputs       => Mode_Switch & Up_Switch,
-        Outputs      => Input_Debouncer_Outputs,
-    );
-    
-    Incease <= true when Input_Debouncer_Outputs(0) = '1' else false;
+    Incease <= true when Up_Switch = '1' else false;
     
     Process ()
     {
         VARIABLE mode_reg : STD_LOGIC := '0';
-        If(Input_Debouncer_Outputs(1) /= mode_reg)
+        If(Mode_Switch /= mode_reg)
         {
             If(Set_Hour NOR Set_Minute)
             {
@@ -127,23 +164,11 @@ Component SmartHome_Controller
                 Set_Minute <= false;
             }
         }
-        mode_reg := Input_Debouncer_Outputs(1);
+        mode_reg := Mode_Switch;
     }
     
-    ISSP_probe(0) <= Mode_Switch;
-    ISSP_probe(1) <= Up_Switch;
-    ISSP_probe(3 downto 2) <= Input_Debouncer_Outputs;
-    ISSP_probe(4) <= '1' when Set_Hour else '0';
-    ISSP_probe(5) <= '1' when Set_Minute else '0';
-    
-    SIGNAL ISSP_probe  : std_logic_vector (31 downto 0) := (others => 'X');
-    NewComponent ISSP
-    (
-        probe  =>ISSP_probe,
-    );
-    
     --Clap detect------------------------------------------
-   
+    
     CONSTANT Threshold         : NATURAL := 800;   --This-Last Max > Threshold
     CONSTANT Max_Duration      : NATURAL := 10;    --7 = 70ms
     CONSTANT Max_False_Samples : NATURAL := 1000;  --32us*Max_False_Samples = Time to wait for clap sound wave
@@ -153,106 +178,111 @@ Component SmartHome_Controller
     
     CONSTANT Max_Claps         : NATURAL := 5;
     
+    SIGNAL Claps_reg : NATURAL range 0 to 5;
+    
     SIGNAL Clap : STD_LOGIC := '0';
     
     Process ()
     {
-        Thread
+        If(En_Clap_Switch = '1')
         {
-            -- Wenn Schalter gesetzt und Geräusche nach 1min und 1min danach nicht aus -> alarm
-            -- Bei Uhrzeit Licht aus/an + wenn Geräusche
-            
-            --> 1500 -> Klatschen -< danach leise wieder
-            
-            VARIABLE Mic_Diff     : UNSIGNED (17 downto 0);
-            VARIABLE Mic_Reg      : SIGNED (17 downto 0);
-            VARIABLE Mic_Max      : UNSIGNED (17 downto 0);
-            VARIABLE Mic_Max_Reg  : UNSIGNED (17 downto 0);
-            
-            VARIABLE Clap_Start    : BOOLEAN := true;
-            VARIABLE False_Samples : NATURAL range 0 to Max_False_Samples := 0;
-
-            Mic_Max := (others => '0');
-            For(VARIABLE Samples : NATURAL range 0 to Max_Samples := 0; Samples < Max_Samples; Samples := Samples + 1)
+            Thread
             {
-                Mic_Diff := TO_UNSIGNED(abs(TO_INTEGER(Mic_Out - Mic_Reg)), Mic_Diff'LENGTH);
+                -- Wenn Schalter gesetzt und Geräusche nach 1min und 1min danach nicht aus -> alarm
+                -- Bei Uhrzeit Licht aus/an + wenn Geräusche
                 
-                VARIABLE diff_abs : INTEGER range -131000 to 131000;
-                diff_abs := TO_INTEGER(Mic_Diff);
-                diff_abs := diff_abs - TO_INTEGER(Mic_Max_Reg)*2;
-                If(diff_abs > Threshold) --This-Last Max > Threshold
+                --> 1500 -> Klatschen -< danach leise wieder
+                
+                VARIABLE Mic_Diff     : UNSIGNED (17 downto 0);
+                VARIABLE Mic_Reg      : SIGNED (17 downto 0);
+                VARIABLE Mic_Max      : UNSIGNED (17 downto 0);
+                VARIABLE Mic_Max_Reg  : UNSIGNED (17 downto 0);
+                
+                VARIABLE Clap_Start    : BOOLEAN := true;
+                VARIABLE False_Samples : NATURAL range 0 to Max_False_Samples := 0;
+                
+                Mic_Max := (others => '0');
+                For(VARIABLE Samples : NATURAL range 0 to Max_Samples := 0; Samples < Max_Samples; Samples := Samples + 1)
                 {
-                    If(Clap_Start)
-                    {
-                        Samples    := 0;
-                        Clap_Start := false;
-                    }
-                    False_Samples := 0;
+                    Mic_Diff := TO_UNSIGNED(abs(TO_INTEGER(Mic_Out - Mic_Reg)), Mic_Diff'LENGTH);
                     
-                    Clap        <= '1';
-                }
-                Else
-                {
-                    If(False_Samples < Max_False_Samples)
+                    VARIABLE diff_abs : INTEGER range -131000 to 131000;
+                    diff_abs := TO_INTEGER(Mic_Diff);
+                    diff_abs := diff_abs - TO_INTEGER(Mic_Max_Reg)*2;
+                    If(diff_abs > Threshold) --This-Last Max > Threshold
                     {
-                        False_Samples := False_Samples + 1;
+                        If(Clap_Start)
+                        {
+                            Samples    := 0;
+                            Clap_Start := false;
+                        }
+                        False_Samples := 0;
+                        
+                        Clap        <= '1';
                     }
                     Else
                     {
-                        Clap_Start := true;
-                        Clap       <= '0';
-                        
-                        If(Mic_Max < Mic_Diff)
+                        If(False_Samples < Max_False_Samples)
                         {
-                            Mic_Max := Mic_Diff;
+                            False_Samples := False_Samples + 1;
+                        }
+                        Else
+                        {
+                            Clap_Start := true;
+                            Clap       <= '0';
+                            
+                            If(Mic_Max < Mic_Diff)
+                            {
+                                Mic_Max := Mic_Diff;
+                            }
                         }
                     }
+                    
+                    Mic_Reg  := Mic_Out;
+                    Wait(32us);
                 }
                 
-                Mic_Reg  := Mic_Out;
-                Wait(32us);
+                Mic_Max_Reg := Mic_Max;
+                
+                --ISSP_probe(17 downto 0) <= STD_LOGIC_VECTOR(Mic_Max_Reg);
             }
             
-            Mic_Max_Reg := Mic_Max;
-            
-            --ISSP_probe(17 downto 0) <= STD_LOGIC_VECTOR(Mic_Max_Reg);
-        }
-        
-        Thread
-        {
-            VARIABLE Delay_Duration : NATURAL range 0 to Max_Delay := 0;
-            Delay_Duration := 0;
-            While(Clap = '0')
+            Thread
             {
-                If(Delay_Duration < Max_Delay)
+                VARIABLE Delay_Duration : NATURAL range 0 to Max_Delay := 0;
+                Delay_Duration := 0;
+                While(Clap = '0')
                 {
-                    Delay_Duration := Delay_Duration + 1;
+                    If(Delay_Duration < Max_Delay)
+                    {
+                        Delay_Duration := Delay_Duration + 1;
+                    }
+                    Else
+                    {
+                        Claps_reg <= Clap_Count;
+                        Clap_Count := 0;
+                    }
+                    Wait(10ms);
                 }
-                Else
+                Claps_reg <= 0;
+                VARIABLE Clap_Duration : NATURAL range 0 to Max_Delay := 0;
+                Clap_Duration := 0;
+                While(Clap = '1')
                 {
-                    Claps <= Clap_Count;
-                    Clap_Count := 0;
+                    If(Clap_Duration < Max_Delay)
+                    {
+                        Clap_Duration := Clap_Duration + 1;
+                    }
+                    Wait(10ms);
                 }
-                Wait(10ms);
-            }
-            Claps <= 0;
-            VARIABLE Clap_Duration : NATURAL range 0 to Max_Delay := 0;
-            Clap_Duration := 0;
-            While(Clap = '1')
-            {
-                If(Clap_Duration < Max_Delay)
+                VARIABLE Clap_Count : NATURAL range 0 to Max_Claps := 0;
+                If(Clap_Duration < Max_Duration AND Delay_Duration > Min_Delay AND Clap_Count < Max_Claps)
                 {
-                    Clap_Duration := Clap_Duration + 1;
+                    Clap_Count := Clap_Count + 1;
                 }
-                Wait(10ms);
+                --ISSP_probe1 <= STD_LOGIC_VECTOR(TO_UNSIGNED(Clap_Duration, ISSP_probe1'LENGTH));
+                --ISSP_probe2 <= STD_LOGIC_VECTOR(TO_UNSIGNED(Delay_Duration, ISSP_probe2'LENGTH));
             }
-            VARIABLE Clap_Count : NATURAL range 0 to Max_Claps := 0;
-            If(Clap_Duration < Max_Duration AND Delay_Duration > Min_Delay AND Clap_Count < Max_Claps)
-            {
-                Clap_Count := Clap_Count + 1;
-            }
-            --ISSP_probe1 <= STD_LOGIC_VECTOR(TO_UNSIGNED(Clap_Duration, ISSP_probe1'LENGTH));
-            --ISSP_probe2 <= STD_LOGIC_VECTOR(TO_UNSIGNED(Delay_Duration, ISSP_probe2'LENGTH));
         }
     }
     

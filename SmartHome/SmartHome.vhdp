@@ -22,7 +22,12 @@ Main
 )
 {
     
-    Process Scene_Select ()
+    CONSTANT Day_brightness_init   : INTEGER range -1 to 15 := 6; --brightness from 10 to 18
+    CONSTANT Dusk_brightness_init  : INTEGER range -1 to 15 := 0; --brightness from 6 to 10 and 18 to 22
+    CONSTANT Night_brightness_init : INTEGER range -1 to 15 := -1; --brightness from 22 to 6
+    
+    --Select scenes depending on claps, switch scene with switch input and set matrix brighness
+    Process ()
     {
         VARIABLE New_Clap : BOOLEAN := true;
         
@@ -42,7 +47,7 @@ Main
                 New_Clap := false;
             }
             
-            If(Claps = 3)        --clapped 3 times -> switch between other scenes
+            If(Claps = 3) --clapped 3 times -> switch between other scenes
             {
                 If(Scene > 3)    --If scene 4 is on
                 {
@@ -59,6 +64,39 @@ Main
                 
                 New_Clap := false;
             }
+            
+            If(Claps = 6) --When matrix enable is on, you are not in the clock settings and the increase switch is on, switch between all scenes
+            {
+                If(Scene < 3)
+                {
+                    Scene <= Scene + 1;
+                }
+                Else
+                {
+                    Scene <= 1;
+                }
+                New_Clap := false;
+            }
+            
+            VARIABLE Set_brightness   : INTEGER range -1 to 15;
+            VARIABLE new_setting      : BOOLEAN := false;
+            VARIABLE Day_brightness   : INTEGER range -1 to 15 := Day_brightness_init; --brightness from 10 to 18
+            VARIABLE Dusk_brightness  : INTEGER range -1 to 15 := Dusk_brightness_init; --brightness from 6 to 10 and 18 to 22
+            VARIABLE Night_brightness : INTEGER range -1 to 15 := Night_brightness_init; --brightness from 22 to 6
+            
+            If(Claps = 7) --When matrix enable is off, you are not in the clock settings and the increase switch is on, set brighness of matrix
+            {
+                If(Set_brightness < 15)
+                {
+                    Set_brightness := Set_brightness + 1;
+                }
+                Else
+                {
+                    Set_brightness := 0;
+                }
+                new_setting := true;
+                New_Clap := false;
+            }
         }
         Else
         {
@@ -67,26 +105,54 @@ Main
                 New_Clap := true;
             }
         }
-    }
-
-    /*
-    Process Clock_Setting ()
-    {
-        If(Clock_Switch = '1')   --Clock Switch set to 'on'
+        
+        If(Input_Debouncer_Outputs(2 downto 1) = "00")  --debounced En_Matrix_Switch
         {
-            Set_Clock <= true;   --Enable clock setup mode
+            Set_brightness := -1;
+        }
+        Elsif(Clock_Hours > 21 OR Clock_Hours < 6)
+        {
+            If(new_setting)
+            {
+                Night_brightness := Set_brightness;
+            }
+            Set_brightness := Night_brightness;
+        }
+        Elsif(Clock_Hours > 9 AND Clock_Hours < 18)
+        {
+            If(new_setting)
+            {
+                Day_brightness := Set_brightness;
+            }
+            Set_brightness := Day_brightness;
         }
         Else
         {
-            Set_Clock <= false;
+            If(new_setting)
+            {
+                Dusk_brightness := Set_brightness;
+            }
+            Set_brightness := Dusk_brightness;
         }
+        new_setting := false;
+        Brightness <= Set_brightness;
     }
-    */
+
+    SIGNAL Input_Debouncer_Outputs      : STD_LOGIC_VECTOR (4-1 downto 0) := (others => '0');
+    NewComponent Input_Debouncer
+    (
+        Counter_Size => 19,
+        Input_Number => 4,
+
+        Inputs       => Mode_Switch & Up_Switch & En_Matrix_Switch & En_Clap_Switch,
+        Outputs      => Input_Debouncer_Outputs,
+    );
     
-    SIGNAL  Claps     : NATURAL range 0 to 5 := 0;
-    SIGNAL  Set_Clock : BOOLEAN := false;
+    SIGNAL  Claps     : NATURAL range 0 to 7 := 0;
     SIGNAL  Scene     : NATURAL range 1 to 4 := 1;
-    
+    SIGNAL Clock_Hours      : NATURAL          range 0 to 23 := 0;
+    SIGNAL Clock_Minutes    : NATURAL          range 0 to 59 := 0;
+    SIGNAL Brightness       : INTEGER          range -1 to 15 := 4;
     NewComponent SmartHome_Controller
     (
         Scene_1_Setting  => (Switch_A => false, Switch_B => false, Switch_C => false, Switch_D => false, Visualizer => false, Matrix => false),
@@ -94,6 +160,8 @@ Main
         Scene_3_Setting  => (Switch_A => false, Switch_B => false, Switch_C => false, Switch_D => false, Visualizer => false, Matrix => false),
         Scene_4_Setting  => (Switch_A => false, Switch_B => false, Switch_C => false, Switch_D => false, Visualizer => false, Matrix => false),
         Setting_Switches => true,
+        Claps_for_cycle  => 6,
+        Claps_for_bright => 7,
 
         Button_In      => Button_In,
         Button_Out     => Button_Out,
@@ -105,12 +173,16 @@ Main
         Matrix_DIN_O   => Matrix_DIN_O,
         RTC_SCL        => RTC_SCL,
         RTC_SDA        => RTC_SDA,
-        Mode_Switch    => Mode_Switch,
-        Up_Switch      => Up_Switch,
+        Mode_Switch      => Input_Debouncer_Outputs(3),
+        Up_Switch        => Input_Debouncer_Outputs(2),
+        En_Clap_Switch   => Input_Debouncer_Outputs(0),
+        En_Matrix_Switch => Input_Debouncer_Outputs(1),
         
         Scene          => Scene,
         Claps          => Claps,
-        Set_Clock      => Set_Clock,
+        Brightness     => Brightness,
+        Clock_Hours    => Clock_Hours,
+        Clock_Minutes  => Clock_Minutes,
     );
     
 }

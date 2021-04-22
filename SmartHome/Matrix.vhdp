@@ -16,6 +16,8 @@ Component Matrix
     RTC_SDA       : INOUT STD_LOGIC := 'Z';
     RTC_SCL       : INOUT STD_LOGIC := 'Z';
     
+    Enable        : IN STD_LOGIC := '1';
+    
     Clock_Mode    : IN BOOLEAN := true;
     Set_Hour      : IN BOOLEAN := false;
     Set_Minute    : IN BOOLEAN := false;
@@ -24,6 +26,9 @@ Component Matrix
     Brightness    : IN NATURAL range 0 to 15 := 5;
     
     Mic_Out       : OUT SIGNED(17 downto 0);
+    
+    Clock_Hours    : OUT NATURAL range 0 to 23 := 0;
+    Clock_Minutes  : OUT NATURAL range 0 to 59 := 0;
 )
 {
     
@@ -38,6 +43,9 @@ Component Matrix
         RTC_SCL,
         RTC_SDA,
     }
+    
+    Clock_Hours <= DS3231_Interface_Time_Out.Hour10*10 + DS3231_Interface_Time_Out.Hour;
+    Clock_Minutes <= DS3231_Interface_Time_Out.Minute10*10 + DS3231_Interface_Time_Out.Minute;
     
     Mic_Out <= SIGNED(I2S_Interface_IN_Data_L);
 
@@ -97,7 +105,20 @@ Component Matrix
     
     Process ()
     {
-        If(Clock_Mode)
+        VARIABLE en_reg : STD_LOGIC := '1';
+        If(Enable = '0')
+        {
+            If(Enable /= en_reg)
+            {
+                LED_Matrix_Panel_Bitmap <= (others => (others => '0'));
+                LED_Matrix_Update <= '1';
+            }
+            Else
+            {
+                LED_Matrix_Update <= '0';
+            }
+        }
+        Elsif(Clock_Mode)
         {
             LED_Matrix_Panel_Bitmap <= LED_Matrix_Text_Text_Matrix;
             If(Set_Minute)
@@ -110,6 +131,7 @@ Component Matrix
             }
             LED_Matrix_Update       <= LED_Matrix_Text_Text_En;
         }
+        en_reg := Enable;
         
         Thread
         {
@@ -138,7 +160,7 @@ Component Matrix
             }
             Elsif(Set_Hour)
             {
-                If(DS3231_Interface_Config_Time.Hour < 9)
+                If((DS3231_Interface_Config_Time.Hour < 9 AND DS3231_Interface_Config_Time.Hour10 < 2) OR DS3231_Interface_Config_Time.Hour < 3)
                 {
                     DS3231_Interface_Config_Time.Hour <= DS3231_Interface_Config_Time.Hour + 1;
                 }
@@ -177,7 +199,11 @@ Component Matrix
             
             While(Brightness = Brightness_reg)
             {
-                If(Clock_Mode)
+                If(Enable = '0')
+                {
+                    DS3231_Interface_Config <= '0';
+                }
+                Elsif(Clock_Mode)
                 {
                     VARIABLE display_time : Date_Time_Type;
                     VARIABLE set_reg : BOOLEAN := false;
@@ -198,11 +224,11 @@ Component Matrix
                     {
                         If(set_reg)
                         {
-                            DS3231_Interface_Config_Time <= '1';
+                            DS3231_Interface_Config <= '1';
                         }
                         Else
                         {
-                            DS3231_Interface_Config_Time <= '0';
+                            DS3231_Interface_Config <= '0';
                         }
                         set_reg := false;
                         display_time := DS3231_Interface_Time_Out;
