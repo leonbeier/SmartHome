@@ -290,6 +290,14 @@ Component Matrix
         Temp25        => DS3231_Interface_Temp25,
     );
     
+    ISSP_probe <= STD_LOGIC_VECTOR(TO_SIGNED(DS3231_Interface_Temp*100 + DS3231_Interface_Temp25*25, ISSP_probe'LENGTH));
+    
+    SIGNAL ISSP_probe  : std_logic_vector (31 downto 0) := (others => 'X');
+    NewComponent ISSP
+    (
+        probe  =>ISSP_probe,
+    );
+    
     SIGNAL LED_Matrix_Text_Text          : STD_LOGIC_VECTOR ((5*8)-1 downto 0) := (others => '0');
     SIGNAL LED_Matrix_Text_Set_Text      : STD_LOGIC := '0';
     SIGNAL LED_Matrix_Text_Text_Matrix   : LED_Matrix_Array ((4*8)-1 downto 0) := (others => (others => '0'));

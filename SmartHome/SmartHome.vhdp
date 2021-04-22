@@ -21,7 +21,6 @@ Main
     En_Clap_Switch   : IN  STD_LOGIC;
 )
 {
-    
     CONSTANT Day_brightness_init   : INTEGER range -1 to 15 := 6; --brightness from 10 to 18
     CONSTANT Dusk_brightness_init  : INTEGER range -1 to 15 := 0; --brightness from 6 to 10 and 18 to 22
     CONSTANT Night_brightness_init : INTEGER range -1 to 15 := -1; --brightness from 22 to 6
@@ -137,6 +136,14 @@ Main
         new_setting := false;
         Brightness <= Set_brightness;
     }
+    
+    ISSP_probe <= STD_LOGIC_VECTOR(TO_UNSIGNED(Noise, ISSP_probe'LENGTH));
+    
+    SIGNAL ISSP_probe  : std_logic_vector (31 downto 0) := (others => 'X');
+    NewComponent ISSP
+    (
+        probe  =>ISSP_probe,
+    );
 
     SIGNAL Input_Debouncer_Outputs      : STD_LOGIC_VECTOR (4-1 downto 0) := (others => '0');
     NewComponent Input_Debouncer
@@ -153,6 +160,7 @@ Main
     SIGNAL Clock_Hours      : NATURAL          range 0 to 23 := 0;
     SIGNAL Clock_Minutes    : NATURAL          range 0 to 59 := 0;
     SIGNAL Brightness       : INTEGER          range -1 to 15 := 4;
+    SIGNAL Noise            : NATURAL          range 0 to 131000 := 0;
     NewComponent SmartHome_Controller
     (
         Scene_1_Setting  => (Switch_A => false, Switch_B => false, Switch_C => false, Switch_D => false, Visualizer => false, Matrix => false),
@@ -183,6 +191,7 @@ Main
         Brightness     => Brightness,
         Clock_Hours    => Clock_Hours,
         Clock_Minutes  => Clock_Minutes,
+        Noise          => Noise,
     );
     
 }

@@ -52,6 +52,8 @@ Component SmartHome_Controller
     Clock_Minutes  : OUT NATURAL range 0 to 59 := 0;
     
     Brightness     : IN INTEGER range -1 to 15 := 4;  -- -1 = off while on
+    
+    Noise          : OUT NATURAL range 0 to 131000 := 0;
 )
 {
     
@@ -243,6 +245,8 @@ Component SmartHome_Controller
                 }
                 
                 Mic_Max_Reg := Mic_Max;
+                
+                Noise <= TO_INTEGER(Mic_Max);
                 
                 --ISSP_probe(17 downto 0) <= STD_LOGIC_VECTOR(Mic_Max_Reg);
             }
