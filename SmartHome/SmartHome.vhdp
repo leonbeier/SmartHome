@@ -167,7 +167,7 @@ Main
         Scene_2_Setting  => (Switch_A => true,  Switch_B => false, Switch_C => false, Switch_D => false, Visualizer => true,  Matrix => false),
         Scene_3_Setting  => (Switch_A => false, Switch_B => false, Switch_C => false, Switch_D => false, Visualizer => false, Matrix => false),
         Scene_4_Setting  => (Switch_A => false, Switch_B => false, Switch_C => false, Switch_D => false, Visualizer => false, Matrix => false),
-        Setting_Switches => true,
+        --Setting_Switches => true,
         Claps_for_cycle  => 6,
         Claps_for_bright => 7,
 

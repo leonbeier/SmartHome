@@ -19,7 +19,7 @@ Component SmartHome_Controller
         Scene_3_Setting  : Scene_Type := (Switch_A => false, Switch_B => false, Switch_C => false, Switch_D => false, Visualizer => false, Matrix => false);
         Scene_4_Setting  : Scene_Type := (Switch_A => false, Switch_B => false, Switch_C => false, Switch_D => false, Visualizer => false, Matrix => false);
         
-        Setting_Switches : BOOLEAN := true; --Use switches for clock settings (or use tactile switches otherwise)
+        --Setting_Switches : BOOLEAN := true; --Use switches for clock settings (or use tactile switches otherwise)
         Claps_for_cycle  : NATURAL := 6;    --Outputs this clap count if manual scene change is selected
         Claps_for_bright : NATURAL := 7;    --Outputs this clap count if brigness should change
     );
